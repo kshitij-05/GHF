@@ -35,3 +35,15 @@ double scf_energy(Matrix D,Matrix H, Matrix F){
     }
     return energy;
 }
+
+Matrix dot_prod(Matrix A, Matrix B){
+    Matrix C = Eigen::MatrixXd::Zero(A.rows(),B.cols());
+    for (auto i=0; i < A.rows() ;i++){
+        for(auto j=0; j < B.cols() ; j++){
+            for(auto k=0; k< A.cols(); k++){
+                C(i,j) += A(i,k)*B(k,j);
+            }
+        }
+    }
+    return C;
+}
