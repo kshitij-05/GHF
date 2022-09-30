@@ -59,9 +59,9 @@ Atom line_read(vector<string> line){
     int i =0;
     Atom atom;
     atom.atomic_number = atomic_no_sym(line[0]);
-    atom.x = std::stod(line[1]);
-    atom.y = std::stod(line[2]);
-    atom.z = std::stod(line[3]);
+    atom.x = 1.8897259886*std::stod(line[1]);
+    atom.y = 1.8897259886*std::stod(line[2]);
+    atom.z = 1.8897259886*std::stod(line[3]);
     return atom;
 }
 
@@ -91,17 +91,49 @@ vector <Atom>  read_geometry(string filename){
     return atoms;
 }
 
-vector<string> read_input(string inp_file){
+struct inp_params{
+    string scf = "RHF";
+    string method = "HF";
+    string basis= "STO-3G";
+    double scf_convergence = 1e-10;
+    int do_diis = 1;
+    int spin_mult = 1;
+    int charge = 0;
+};
+
+
+inp_params read_input(string inp_file){
     std::ifstream inp (inp_file);
-    vector<string> inp_lines;
+    inp_params inpParams;
     if(inp.is_open()){
         string line;
         while(inp){
             std::getline (inp,line);
-            inp_lines.push_back(line);
+            vector<string> vals {spliter(line, ' ')};
+            if(vals[0] == "method"){
+                inpParams.method = vals[1];
+            }
+            if(vals[0] == "basis"){
+                inpParams.basis = vals[1];
+            }
+            if(vals[0] == "scf_convergence"){
+                inpParams.scf_convergence = std::stod(vals[1]);
+            }
+            if(vals[0] == "do_diis"){
+                inpParams.do_diis = std::stoi(vals[1]);
+            }
+            if(vals[0] == "spin_mult"){
+                inpParams.spin_mult = std::stoi(vals[1]);
+            }
+            if(vals[0] == "charge"){
+                inpParams.charge = std::stoi(vals[1]);
+            }
+            if(vals[0]=="scf"){
+                inpParams.scf = vals[1];
+            }
         }
     }
-    return inp_lines;
+    return inpParams;
 }
 
 
