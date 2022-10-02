@@ -16,6 +16,10 @@
 #  include <libint2/statics_definition.h>
 #endif
 
+#include <btas/btas.h>
+#include <btas/tensor.h>
+using namespace btas;
+
 using std::cout;
 using std::string;
 using std::endl;
@@ -43,9 +47,12 @@ std::vector<Atom> read_geometry(string filename);
 inp_params read_input(string inp_file);
 double enuc_calc(vector<Atom> atoms);
 size_t nbasis(const std::vector<libint2::Shell>& shells);
-void RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc);
+vector<Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc);
 void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc);
-void make_ao_ints(const std::vector<libint2::Shell>& shells,size_t nbasis);
+Tensor<double> make_ao_ints(const std::vector<libint2::Shell>& shells);
+double mp2_energy(Tensor <double> eri, Matrix coeffs, Matrix F , int no, int nv);
+double mp2_rhf(Tensor<double> eri, Matrix coeffs, Matrix F, int no, int nv);
+Tensor<double> make_ao_ints_simple(const std::vector<libint2::Shell>& shells);
 
 
 int main(int argc, char* argv[]) {
@@ -85,8 +92,9 @@ int main(int argc, char* argv[]) {
     // SCF PROCEDURES
 
     //RHF
+    vector<Matrix> scf_results;
     if(inpParams.scf == "RHF"){
-        RHF(obs,atoms,Nbasis,nelec,inpParams ,enuc);
+        scf_results = RHF(obs,atoms,Nbasis,nelec,inpParams ,enuc);
     }
 
     //UHF
@@ -94,7 +102,15 @@ int main(int argc, char* argv[]) {
         UHF(obs,atoms,Nbasis,nelec,inpParams ,enuc);
     }
 
-
+    if(inpParams.method == "MP2") {
+        auto eri = make_ao_ints_simple(obs.shells());
+        int no = nelec/2;
+        int nv = Nbasis-no;
+        cout << "number of occupied orbitals: " << no << endl;
+        cout << "number of virtual  orbitals: "<< Nbasis-no << endl;
+        double emp2 = mp2_rhf(eri,scf_results[1],scf_results[0],no, nv);
+        cout<< std::setprecision(15) << "MP2 energy: "<< emp2<<endl;
+    }
 }
 
 

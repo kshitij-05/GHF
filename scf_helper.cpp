@@ -98,7 +98,8 @@ struct inp_params{
 
 
 
-void RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc){
+vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc){
+    vector<Matrix> results;
     const auto nocc = nelec / 2;
     // 1 body intergrals
     libint2::initialize();
@@ -177,16 +178,23 @@ void RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_pa
         hf_energy = new_energy;
         cout << std::setprecision(15)<< "iter no :\t" << i+1 << "\t" << "Energy :\t"
              << hf_energy + enuc << "\t" << "Delta_E :\t" << delta_e << endl;
+        auto mo_energy = fock_diag.eigenvalues();
         if (delta_e <=inpParams.scf_convergence){
             cout << "Converged SCF energy :" << hf_energy +enuc<< "  a.u." << endl;
-            auto mo_energy = fock_diag.eigenvalues();
             cout << "Eigenvalues of Fock Matrix:"<< endl;
             for(int a=0;a< Nbasis;a++){
                 cout << a+1 << "\t" << mo_energy(a)<< endl;
             }
+            Matrix F  = Matrix::Zero(Nbasis,Nbasis);
+            for(auto i=0;i<Nbasis;i++){
+                F(i,i) = mo_energy(i);
+            }
+            results.push_back(F);
+            results.push_back(fock_diag.eigenvectors());
             break;
         }
     }
+    return results;
 }
 
 void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc) {
@@ -222,7 +230,6 @@ void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_pa
         Eigen::SelfAdjointEigenSolver<Matrix> falpha_diag(S_inv.transpose()*Falpha*S_inv);
         Matrix Calpha = S_inv*falpha_diag.eigenvectors();
         Dalpha = make_density(Calpha,nalpha);
-
         Eigen::SelfAdjointEigenSolver<Matrix> fbeta_diag(S_inv.transpose()*Fbeta*S_inv);
         Matrix Cbeta = S_inv*fbeta_diag.eigenvectors();
         Dbeta = make_density(Cbeta,nalpha);
