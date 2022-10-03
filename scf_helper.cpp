@@ -28,9 +28,6 @@ shells,libint2::Operator obtype,const std::vector<Atom>& atoms);
 Matrix make_fock(const std::vector<libint2::Shell>& shells,const Matrix& D);
 Matrix make_fock_uhf(const std::vector<libint2::Shell>& shells,
                      const Matrix& Dt, const Matrix& Dspin);
-Matrix compute_2body_fock_simple(const std::vector<libint2::Shell>& shells,
-                                 const Matrix& D);
-
 
 Matrix make_density(Matrix C ,const int nocc){
 
@@ -58,7 +55,6 @@ double scf_energy(Matrix D,Matrix H, Matrix F){
     }
     return energy;
 }
-
 
 double uhf_energy(Matrix Dt, Matrix H , Matrix Dalpha, Matrix Falpha, Matrix Dbeta, Matrix Fbeta){
     double uhf_energy = 0.0;
@@ -94,9 +90,19 @@ struct inp_params{
     int charge = 0;
 };
 
-
-
-
+Matrix make_X(Matrix S){
+    int n = S.rows();
+    Eigen::SelfAdjointEigenSolver<Matrix> S_diag(S);
+    auto eigenvec  = S_diag.eigenvectors();
+    auto eigenvalues = S_diag.eigenvalues();
+    Matrix half_eigen = Matrix::Zero(n,n);
+    for(auto i=0;i<n;i++){
+        half_eigen(i,i) = pow(eigenvalues(i),-0.5);
+    }
+    Matrix temp  = dot_prod(eigenvec, half_eigen);
+    Matrix X = dot_prod(temp,eigenvec.transpose());
+    return X;
+}
 
 vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc){
     vector<Matrix> results;
@@ -109,16 +115,14 @@ vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int ne
     Matrix H = T+V;
 
     // initial guess fock = S^1/2.T * H * S^1/2
-    Eigen::SelfAdjointEigenSolver<Matrix> ovlp_inv_sqrt(S);
-    auto S_inv = ovlp_inv_sqrt.operatorInverseSqrt();
+    auto S_inv = make_X(S);
     Matrix init_guess_fock;
-    init_guess_fock.noalias() = S_inv.transpose()*H*S_inv;
+    init_guess_fock = dot_prod(S_inv.transpose(), dot_prod(H,S_inv));
 
     //Build Initial Guess Density
     Eigen::SelfAdjointEigenSolver<Matrix> init_fock_diag(init_guess_fock);
-    Matrix C = S_inv*init_fock_diag.eigenvectors();
+    Matrix C = dot_prod(S_inv,init_fock_diag.eigenvectors());
     Matrix D = make_density(C ,nocc);
-
     cout  << "Initial SCF energy: " << scf_energy(D,H,init_guess_fock)<< endl;
     //SCF LOOP
     double hf_energy = 0.0;
@@ -170,8 +174,10 @@ vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int ne
                 }
             }
         }
-        Eigen::SelfAdjointEigenSolver<Matrix> fock_diag(S_inv.transpose()*Fock*S_inv);
-        C = S_inv*fock_diag.eigenvectors();
+
+        Matrix diag = dot_prod(S_inv.transpose(), dot_prod(Fock,S_inv));
+        Eigen::SelfAdjointEigenSolver<Matrix> fock_diag(diag);
+        C = dot_prod(S_inv,fock_diag.eigenvectors());
         D = make_density(C,nocc);
         double new_energy = scf_energy(D,H,Fock);
         double delta_e = abs(new_energy - hf_energy);
@@ -190,7 +196,7 @@ vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int ne
                 F(i,i) = mo_energy(i);
             }
             results.push_back(F);
-            results.push_back(fock_diag.eigenvectors());
+            results.push_back(C);
             break;
         }
     }

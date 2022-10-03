@@ -1,4 +1,4 @@
-scf UHF
+scf RHF
 method MP2
 basis STO-3G
 scf_convergence 1e-10

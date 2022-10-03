@@ -59,9 +59,9 @@ Atom line_read(vector<string> line){
     int i =0;
     Atom atom;
     atom.atomic_number = atomic_no_sym(line[0]);
-    atom.x = 1.8897259886*std::stod(line[1]);
-    atom.y = 1.8897259886*std::stod(line[2]);
-    atom.z = 1.8897259886*std::stod(line[3]);
+    atom.x = 1.8897259885789*std::stod(line[1]);
+    atom.y = 1.8897259885789*std::stod(line[2]);
+    atom.z = 1.8897259885789*std::stod(line[3]);
     return atom;
 }
 

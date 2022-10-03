@@ -52,7 +52,6 @@ void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_pa
 Tensor<double> make_ao_ints(const std::vector<libint2::Shell>& shells);
 double mp2_energy(Tensor <double> eri, Matrix coeffs, Matrix F , int no, int nv);
 double mp2_rhf(Tensor<double> eri, Matrix coeffs, Matrix F, int no, int nv);
-Tensor<double> make_ao_ints_simple(const std::vector<libint2::Shell>& shells);
 
 
 int main(int argc, char* argv[]) {
@@ -103,12 +102,13 @@ int main(int argc, char* argv[]) {
     }
 
     if(inpParams.method == "MP2") {
-        auto eri = make_ao_ints_simple(obs.shells());
+        auto eri = make_ao_ints(obs.shells());
+        int n = eri.extent(0);
         int no = nelec/2;
         int nv = Nbasis-no;
         cout << "number of occupied orbitals: " << no << endl;
         cout << "number of virtual  orbitals: "<< Nbasis-no << endl;
-        double emp2 = mp2_rhf(eri,scf_results[1],scf_results[0],no, nv);
+        double emp2 = mp2_energy(eri,scf_results[1],scf_results[0],no, nv);
         cout<< std::setprecision(15) << "MP2 energy: "<< emp2<<endl;
     }
 }
