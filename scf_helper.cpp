@@ -123,7 +123,7 @@ vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int ne
     Eigen::SelfAdjointEigenSolver<Matrix> init_fock_diag(init_guess_fock);
     Matrix C = dot_prod(S_inv,init_fock_diag.eigenvectors());
     Matrix D = make_density(C ,nocc);
-    cout  << "Initial SCF energy: " << scf_energy(D,H,init_guess_fock)<< endl;
+    cout  << std::setprecision(12)<< "Initial SCF energy: " << scf_energy(D,H,init_guess_fock)<< endl;
     //SCF LOOP
     double hf_energy = 0.0;
     int set_lenght = 8;
@@ -182,8 +182,11 @@ vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int ne
         double new_energy = scf_energy(D,H,Fock);
         double delta_e = abs(new_energy - hf_energy);
         hf_energy = new_energy;
-        cout << std::setprecision(15)<< "iter no :\t" << i+1 << "\t" << "Energy :\t"
-             << hf_energy + enuc << "\t" << "Delta_E :\t" << delta_e << endl;
+        if(i==0){
+            cout << "iter no :   " << "Energy (a.u.)\t"<< "Delta_E :\t"<< endl;
+        }
+        cout << std::setprecision(12)<< i+1 << "\t"
+             << hf_energy + enuc << "\t"  << delta_e << endl;
         auto mo_energy = fock_diag.eigenvalues();
         if (delta_e <=inpParams.scf_convergence){
             cout << "Converged SCF energy :" << hf_energy +enuc<< "  a.u." << endl;
@@ -212,14 +215,13 @@ void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_pa
     Matrix H = T + V;
 
     // initial guess fock = S^1/2.T * H * S^1/2
-    Eigen::SelfAdjointEigenSolver<Matrix> ovlp_inv_sqrt(S);
-    auto S_inv = ovlp_inv_sqrt.operatorInverseSqrt();
+    auto S_inv = make_X(S);
     Matrix init_guess_fock;
-    init_guess_fock.noalias() = dot_prod(S_inv.transpose(),dot_prod(H , S_inv));
+    init_guess_fock = dot_prod(S_inv.transpose(), dot_prod(H,S_inv));
 
     //Build Initial Guess Density
     Eigen::SelfAdjointEigenSolver<Matrix> init_fock_diag(init_guess_fock);
-    Matrix C = S_inv * init_fock_diag.eigenvectors();
+    Matrix C = dot_prod(S_inv,init_fock_diag.eigenvectors());
     int nbeta = (nelec - inpParams.spin_mult + 1) / 2;
     int nalpha = nbeta + (inpParams.spin_mult - 1);
     cout << "Number of alpha electrons: " << nalpha << endl;
@@ -227,24 +229,98 @@ void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_pa
     Matrix Dalpha = make_density(C, nalpha);
     Matrix Dbeta = make_density(C, nbeta);
     Matrix Dt = Dalpha + Dbeta;
-    cout << std::setprecision(15) << "initial energy :" << uhf_energy(Dt,H,Dalpha,init_guess_fock,Dbeta,init_guess_fock) << endl;
+    cout << std::setprecision(12) << "initial energy :" << uhf_energy(Dt,H,Dalpha,init_guess_fock,Dbeta,init_guess_fock) << endl;
 
     double hf_energy = 0.0;
+    int set_lenght = 8;
+    vector<Matrix> era,erb,fsa,fsb;
+
     for (int i = 0; i < 100; i++) {
         Matrix Falpha = H + make_fock_uhf(obs.shells(), Dt, Dalpha);
         Matrix Fbeta = H + make_fock_uhf(obs.shells(), Dt, Dbeta);
-        Eigen::SelfAdjointEigenSolver<Matrix> falpha_diag(S_inv.transpose()*Falpha*S_inv);
-        Matrix Calpha = S_inv*falpha_diag.eigenvectors();
+
+        if(inpParams.do_diis==1){
+            int Nerr = era.size();
+            if(i>0){
+                Matrix  aerr = dot_prod(Falpha, dot_prod(Dalpha,S))
+                                - dot_prod(S,dot_prod(Dalpha,Falpha));
+                Matrix  berr = dot_prod(Fbeta, dot_prod(Dbeta,S))
+                               - dot_prod(S,dot_prod(Dbeta,Fbeta));
+                if(Nerr < set_lenght){
+                    era.push_back(aerr);
+                    erb.push_back(berr);
+                    fsa.push_back(Falpha);
+                    fsb.push_back(Fbeta);
+                }
+                else if(Nerr>=set_lenght){
+                    era.erase(era.begin());
+                    erb.erase(erb.begin());
+                    fsa.erase(fsa.begin());
+                    fsb.erase(fsb.begin());
+                    era.push_back(aerr);
+                    erb.push_back(berr);
+                    fsa.push_back(Falpha);
+                    fsb.push_back(Fbeta);
+                }
+            }
+            if(Nerr>=2){
+                Matrix Bmata = Matrix::Zero(Nerr+1,Nerr+1);
+                Matrix zeroveca = Matrix::Zero(Nerr +1,1);
+                Matrix Bmatb = Matrix::Zero(Nerr+1,Nerr+1);
+                Matrix zerovecb = Matrix::Zero(Nerr +1,1);
+                zeroveca(Nerr,0)=-1.0;
+                zerovecb(Nerr,0)=-1.0;
+                for(auto a=0;a<Nerr;a++){
+                    for(auto b=0;b<a+1;b++){
+                        Matrix tempa = dot_prod(era[a].transpose(),era[b]);
+                        Matrix tempb = dot_prod(erb[a].transpose(),erb[b]);
+                        Bmata(a,b) = Bmata(b,a) = tempa.trace();
+                        Bmatb(a,b) = Bmatb(b,a) = tempb.trace();
+                        Bmata(Nerr,a) = Bmata(a,Nerr) = -1.0;
+                        Bmatb(Nerr,a) = Bmatb(a,Nerr) = -1.0;
+                    }
+                }
+
+                if(Bmata.determinant() !=0.0 && Bmatb.determinant() !=0.0) {
+                    Eigen::FullPivHouseholderQR<Matrix> solvera(Bmata);
+                    Eigen::FullPivHouseholderQR<Matrix> solverb(Bmatb);
+                    solvera.setThreshold(1e-15);
+                    solverb.setThreshold(1e-15);
+                    Matrix coeffa = solvera.solve(zeroveca);
+                    Matrix coeffb = solverb.solve(zerovecb);
+                    Falpha -=Falpha;
+                    Fbeta -=Fbeta;
+                    for(int a=0;a<Nerr;a++){
+                        Falpha += coeffa(a)*fsa[a];
+                        Fbeta += coeffb(a)*fsb[a];
+                    }
+                }
+                else if(Bmata.determinant()==0.0){
+                    inpParams.do_diis = 0;
+                    cout << "Bmat is singular" << endl;
+                }
+            }
+        }
+
+
+
+        Matrix tempa = dot_prod(S_inv.transpose(), dot_prod(Falpha,S_inv));
+        Eigen::SelfAdjointEigenSolver<Matrix> falpha_diag(tempa);
+        Matrix Calpha = dot_prod(S_inv,falpha_diag.eigenvectors());
         Dalpha = make_density(Calpha,nalpha);
-        Eigen::SelfAdjointEigenSolver<Matrix> fbeta_diag(S_inv.transpose()*Fbeta*S_inv);
-        Matrix Cbeta = S_inv*fbeta_diag.eigenvectors();
+        Matrix tempb = dot_prod(S_inv.transpose(), dot_prod(Fbeta,S_inv));
+        Eigen::SelfAdjointEigenSolver<Matrix> fbeta_diag(tempb);
+        Matrix Cbeta = dot_prod(S_inv,fbeta_diag.eigenvectors());
         Dbeta = make_density(Cbeta,nalpha);
         Dt = Dbeta+ Dalpha;
         double new_energy = uhf_energy(Dt,H,Dalpha,Falpha,Dbeta, Fbeta);
         double delta_e = abs(new_energy - hf_energy);
         hf_energy = new_energy;
-        cout << std::setprecision(15)<< "iter no :\t" << i+1 << "\t" << "Energy :\t"
-             << hf_energy + enuc << "\t" << "Delta_E :\t" << delta_e << endl;
+        if(i==0){
+            cout << "iter no :   " << "Energy (a.u.)\t"<< "Delta_E :\t"<< endl;
+        }
+        cout << std::setprecision(12)<< i+1 << "\t"
+             << hf_energy + enuc << "\t"  << delta_e << endl;
         if (delta_e <=inpParams.scf_convergence){
             cout << "Converged SCF energy :" << hf_energy +enuc<< "  a.u." << endl;
             break;

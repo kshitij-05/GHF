@@ -158,6 +158,69 @@ Matrix make_fock(const std::vector<libint2::Shell>& shells,
 }
 
 
+
+Matrix make_fock_uhf_complex(const std::vector<libint2::Shell>& shells,const Matrix& Dt, const Matrix& Dspin) {
+    const auto n = nbasis(shells);
+    Matrix G = Matrix::Zero(n,n);
+    Engine engine(Operator::coulomb, max_nprim(shells), max_l(shells), 0);
+    auto shell2bf = map_shell_to_basis_function(shells);
+    const auto& buf = engine.results();
+    for(auto s1=0; s1!=shells.size(); ++s1) {
+        auto bf1_first = shell2bf[s1]; // first basis function in this shell
+        auto n1 = shells[s1].size();   // number of basis functions in this shell
+        for(auto s2=0; s2<=s1; ++s2) {
+            auto bf2_first = shell2bf[s2];
+            auto n2 = shells[s2].size();
+            for(auto s3=0; s3<=s1; ++s3) {
+                auto bf3_first = shell2bf[s3];
+                auto n3 = shells[s3].size();
+                const auto s4_max = (s1 == s3) ? s2 : s3;
+                for(auto s4=0; s4<=s4_max; ++s4) {
+                    auto bf4_first = shell2bf[s4];
+                    auto n4 = shells[s4].size();
+                    // compute the permutational degeneracy (i.e. # of equivalents) of the given shell set
+                    auto s12_deg = (s1 == s2) ? 1.0 : 2.0;
+                    auto s34_deg = (s3 == s4) ? 1.0 : 2.0;
+                    auto s12_34_deg = (s1 == s3) ? (s2 == s4 ? 1.0 : 2.0) : 2.0;
+                    auto s1234_deg = s12_deg * s34_deg * s12_34_deg;
+                    const auto tstart = std::chrono::high_resolution_clock::now();
+                    engine.compute(shells[s1], shells[s2], shells[s3], shells[s4]);
+                    const auto* buf_1234 = buf[0];
+                    if (buf_1234 == nullptr)
+                        continue; // if all integrals screened out, skip to next quartet
+                    for(auto f1=0, f1234=0; f1!=n1; ++f1) {
+                        const auto bf1 = f1 + bf1_first;
+                        for(auto f2=0; f2!=n2; ++f2) {
+                            const auto bf2 = f2 + bf2_first;
+                            for(auto f3=0; f3!=n3; ++f3) {
+                                const auto bf3 = f3 + bf3_first;
+                                for(auto f4=0; f4!=n4; ++f4, ++f1234) {
+                                    const auto bf4 = f4 + bf4_first;
+
+                                    const auto value = buf_1234[f1234];
+
+                                    const auto value_scal_by_deg = value * s1234_deg;
+
+                                    G(bf1,bf2) += Dt(bf3,bf4) * value;
+                                    G(bf3,bf4) += Dt(bf1,bf2) * value;
+                                    G(bf2,bf1) += Dt(bf3,bf4) * value;
+                                    G(bf4,bf3) += Dt(bf1,bf2) * value;
+                                    G(bf1,bf3) -= Dspin(bf2,bf4) * value;
+                                    G(bf2,bf4) -= Dspin(bf1,bf3) * value;
+                                    G(bf1,bf4) -= Dspin(bf2,bf3) * value;
+                                    G(bf2,bf3) -= Dspin(bf1,bf4) * value;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Matrix Gt = G.transpose();
+    return 0.5 * (G + Gt);
+}
+
 Matrix make_fock_uhf(const std::vector<libint2::Shell>& shells,const Matrix& Dt, const Matrix& Dspin) {
     const auto n = nbasis(shells);
     Matrix G = Matrix::Zero(n,n);
