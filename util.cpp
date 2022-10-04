@@ -109,27 +109,29 @@ inp_params read_input(string inp_file){
         string line;
         while(inp){
             std::getline (inp,line);
-            vector<string> vals {spliter(line, ' ')};
-            if(vals[0] == "method"){
-                inpParams.method = vals[1];
-            }
-            if(vals[0] == "basis"){
-                inpParams.basis = vals[1];
-            }
-            if(vals[0] == "scf_convergence"){
-                inpParams.scf_convergence = std::stod(vals[1]);
-            }
-            if(vals[0] == "do_diis"){
-                inpParams.do_diis = std::stoi(vals[1]);
-            }
-            if(vals[0] == "spin_mult"){
-                inpParams.spin_mult = std::stoi(vals[1]);
-            }
-            if(vals[0] == "charge"){
-                inpParams.charge = std::stoi(vals[1]);
-            }
-            if(vals[0]=="scf"){
-                inpParams.scf = vals[1];
+            if(line.size()!=0){
+                vector<string> vals {spliter(line, ' ')};
+                if(vals[0] == "method"){
+                    inpParams.method = vals[1];
+                }
+                if(vals[0] == "basis"){
+                    inpParams.basis = vals[1];
+                }
+                if(vals[0] == "scf_convergence"){
+                    inpParams.scf_convergence = std::stod(vals[1]);
+                }
+                if(vals[0] == "do_diis"){
+                    inpParams.do_diis = std::stoi(vals[1]);
+                }
+                if(vals[0] == "spin_mult"){
+                    inpParams.spin_mult = std::stoi(vals[1]);
+                }
+                if(vals[0] == "charge"){
+                    inpParams.charge = std::stoi(vals[1]);
+                }
+                if(vals[0]=="scf"){
+                    inpParams.scf = vals[1];
+                }
             }
         }
     }

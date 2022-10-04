@@ -104,9 +104,30 @@ Matrix make_X(Matrix S){
     return X;
 }
 
-vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc){
-    vector<Matrix> results;
+
+struct scf_results{
+    bool is_rhf=1;
+    int nelec, nbasis,no,nv , nalpha,nbeta;
+    Matrix C,F,Calpha,Cbeta,Falpha,Fbeta;
+    double scf_energy;
+};
+
+Matrix guess_density(int no, int nbasis){
+    Matrix gD = Matrix::Zero(nbasis,nbasis);
+    for( auto i=0;i<no;i++){
+        gD(i,i) =1.0;
+    }
+    return gD;
+}
+
+
+scf_results RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc){
+    scf_results results;
     const auto nocc = nelec / 2;
+    results.nelec = nelec;
+    results.nbasis = Nbasis;
+    results.no = nocc;
+    results.nv = Nbasis-nocc;
     // 1 body intergrals
     libint2::initialize();
     auto S = compute_1body_ints(obs.shells(), Operator::overlap , atoms);
@@ -122,7 +143,7 @@ vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int ne
     //Build Initial Guess Density
     Eigen::SelfAdjointEigenSolver<Matrix> init_fock_diag(init_guess_fock);
     Matrix C = dot_prod(S_inv,init_fock_diag.eigenvectors());
-    Matrix D = make_density(C ,nocc);
+    Matrix D = guess_density(nocc,Nbasis);
     cout  << std::setprecision(12)<< "Initial SCF energy: " << scf_energy(D,H,init_guess_fock)<< endl;
     //SCF LOOP
     double hf_energy = 0.0;
@@ -185,7 +206,7 @@ vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int ne
         if(i==0){
             cout << "iter no :   " << "Energy (a.u.)\t"<< "Delta_E :\t"<< endl;
         }
-        cout << std::setprecision(12)<< i+1 << "\t"
+        cout << std::setprecision(13)<< i+1 << "\t"
              << hf_energy + enuc << "\t"  << delta_e << endl;
         auto mo_energy = fock_diag.eigenvalues();
         if (delta_e <=inpParams.scf_convergence){
@@ -198,15 +219,23 @@ vector <Matrix> RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int ne
             for(auto i=0;i<Nbasis;i++){
                 F(i,i) = mo_energy(i);
             }
-            results.push_back(F);
-            results.push_back(C);
+            results.scf_energy = hf_energy+enuc;
+            results.F = F;
+            results.C = C;
             break;
         }
     }
     return results;
 }
 
-void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc) {
+scf_results UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc) {
+    scf_results results;
+    const auto nocc = nelec;
+    results.is_rhf = 0;
+    results.nelec = nelec;
+    results.nbasis = Nbasis;
+    results.no = nelec;
+    results.nv = 2*Nbasis-nelec;
     // 1 body intergrals
     libint2::initialize();
     auto S = compute_1body_ints(obs.shells(), Operator::overlap, atoms);
@@ -224,18 +253,20 @@ void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_pa
     Matrix C = dot_prod(S_inv,init_fock_diag.eigenvectors());
     int nbeta = (nelec - inpParams.spin_mult + 1) / 2;
     int nalpha = nbeta + (inpParams.spin_mult - 1);
+    results.nalpha = nalpha;
+    results.nbeta = nbeta;
     cout << "Number of alpha electrons: " << nalpha << endl;
     cout << "Number of beta electrons:  " << nbeta << endl;
-    Matrix Dalpha = make_density(C, nalpha);
-    Matrix Dbeta = make_density(C, nbeta);
+    Matrix Dalpha = guess_density(nalpha,Nbasis);
+    Matrix Dbeta = guess_density(nbeta,Nbasis);
     Matrix Dt = Dalpha + Dbeta;
     cout << std::setprecision(12) << "initial energy :" << uhf_energy(Dt,H,Dalpha,init_guess_fock,Dbeta,init_guess_fock) << endl;
 
     double hf_energy = 0.0;
-    int set_lenght = 8;
+    int set_lenght = 6;
     vector<Matrix> era,erb,fsa,fsb;
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 200; i++) {
         Matrix Falpha = H + make_fock_uhf(obs.shells(), Dt, Dalpha);
         Matrix Fbeta = H + make_fock_uhf(obs.shells(), Dt, Dbeta);
 
@@ -302,8 +333,6 @@ void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_pa
             }
         }
 
-
-
         Matrix tempa = dot_prod(S_inv.transpose(), dot_prod(Falpha,S_inv));
         Eigen::SelfAdjointEigenSolver<Matrix> falpha_diag(tempa);
         Matrix Calpha = dot_prod(S_inv,falpha_diag.eigenvectors());
@@ -311,20 +340,31 @@ void UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_pa
         Matrix tempb = dot_prod(S_inv.transpose(), dot_prod(Fbeta,S_inv));
         Eigen::SelfAdjointEigenSolver<Matrix> fbeta_diag(tempb);
         Matrix Cbeta = dot_prod(S_inv,fbeta_diag.eigenvectors());
-        Dbeta = make_density(Cbeta,nalpha);
+        Dbeta = make_density(Cbeta,nbeta);
         Dt = Dbeta+ Dalpha;
         double new_energy = uhf_energy(Dt,H,Dalpha,Falpha,Dbeta, Fbeta);
         double delta_e = abs(new_energy - hf_energy);
         hf_energy = new_energy;
-        if(i==0){
-            cout << "iter no :   " << "Energy (a.u.)\t"<< "Delta_E :\t"<< endl;
-        }
-        cout << std::setprecision(12)<< i+1 << "\t"
+        if(i==0){cout << "iter no :   " << "Energy (a.u.)\t"<< "Delta_E :\t"<< endl;}
+        cout << std::setprecision(13)<< i+1 << "\t"
              << hf_energy + enuc << "\t"  << delta_e << endl;
+        auto MOEa = falpha_diag.eigenvalues();
+        auto MOEb = fbeta_diag.eigenvalues();
         if (delta_e <=inpParams.scf_convergence){
             cout << "Converged SCF energy :" << hf_energy +enuc<< "  a.u." << endl;
+            Matrix Fa  = Matrix::Zero(Nbasis,Nbasis);
+            Matrix Fb  = Matrix::Zero(Nbasis,Nbasis);
+            for(auto i=0;i<Nbasis;i++){
+                Fa(i,i) = MOEa(i);
+                Fb(i,i) = MOEb(i);
+            }
+            results.Falpha = Fa;
+            results.Fbeta = Fb;
+            results.Calpha = Calpha;
+            results.Cbeta = Cbeta;
             break;
         }
     }
+    return results;
 }
 

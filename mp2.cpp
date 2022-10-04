@@ -33,6 +33,13 @@ size_t nbasis(const std::vector<libint2::Shell>& shells);
 std::vector<size_t> map_shell_to_basis_function(const std::vector<libint2::Shell>& shells);
 using real_t = libint2::scalar_type;
 
+struct scf_results{
+    bool is_rhf=1;
+    int nelec, nbasis,no,nv , nalpha,nbeta;
+    Matrix C,F,Calpha,Cbeta,Falpha,Fbeta;
+    double scf_energy;
+};
+
 Tensor<double> make_ao_ints(const std::vector<libint2::Shell>& shells) {
     // construct the 2-electron repulsion integrals engine
     size_t Nbasis = nbasis(shells);
@@ -86,18 +93,21 @@ Tensor<double> make_ao_ints(const std::vector<libint2::Shell>& shells) {
     return ERI;
 }
 
-Tensor<double> aotomo(Tensor<double>& eri ,Matrix& coeffs){
-    int nbasis = eri.extent(0);
-
-    Tensor<double> C(nbasis,nbasis);
+Tensor<double> aotomo(const Tensor<double>& eri ,const Matrix& coeffs1 , const Matrix& coeffs2 ,const Matrix& coeffs3 ,const Matrix& coeffs4){
+    const auto nbasis = eri.extent(0);
+    Tensor<double> C1(nbasis,nbasis);
+    Tensor<double> C2(nbasis,nbasis);
+    Tensor<double> C3(nbasis,nbasis);
+    Tensor<double> C4(nbasis,nbasis);
     for(auto i=0;i<nbasis;i++){
         for(auto j=0; j<nbasis;j++){
-            C(i,j)= coeffs(i,j);
+            C1(i,j)= coeffs1(i,j);
+            C2(i,j)= coeffs2(i,j);
+            C3(i,j)= coeffs3(i,j);
+            C4(i,j)= coeffs4(i,j);
         }
     }
     Tensor<double> temp1(nbasis,nbasis,nbasis,nbasis);
-    Tensor<double> temp2(nbasis,nbasis,nbasis,nbasis);
-    Tensor<double> temp3(nbasis,nbasis,nbasis,nbasis);
     Tensor<double> moints(nbasis,nbasis,nbasis,nbasis);
     const char p ='p';
     const char q ='q';
@@ -108,12 +118,15 @@ Tensor<double> aotomo(Tensor<double>& eri ,Matrix& coeffs){
     const char k ='k';
     const char l ='l';
 
-    contract(1.0, eri, {p,q,r,s}, C, {s,l}, 1.0, temp1, {p,q,r,l});
-    contract(1.0, temp1, {p,q,r,l}, C, {r,k}, 1.0, temp2, {p,q,k,l});
-    contract(1.0,C,{q,j} , temp2, {p,q,k,l},1.0,temp3,{p,j,k,l});
-    contract(1.0,C,{p,i} , temp3, {p,j,k,l},1.0,moints,{i,j,k,l});
+    contract(1.0, eri, {p,q,r,s}, C1, {s,l}, 1.0, temp1, {p,q,r,l});
+    contract(1.0, temp1, {p,q,r,l}, C2, {r,k}, 1.0, moints, {p,q,k,l});
+    temp1 -=temp1;
+    contract(1.0,C3,{q,j} , moints, {p,q,k,l},1.0,temp1,{p,j,k,l});
+    moints -=moints;
+    contract(1.0,C4,{p,i} , temp1, {p,j,k,l},1.0,moints,{i,j,k,l});
     return moints;
 }
+
 
 Tensor<double> space2spin(Tensor<double>& moints){
     const auto n2 = 2*moints.extent(0);
@@ -141,9 +154,8 @@ Tensor<double> fockspace2spin(Matrix Fock){
     return fock_spin;
 }
 
-Tensor<double> get_oovv(Tensor<double> moints , int nocc, int nvir){
+Tensor<double> get_oovv(Tensor<double> soints , int nocc, int nvir){
     Tensor<double> oovv (nocc,nocc,nvir,nvir);
-    Tensor<double> soints = space2spin(moints);
     for(auto i=0;i<nocc; i++){
         for(auto j=0;j<nocc;j++){
             for(auto a=0;a<nvir;a++){
@@ -170,40 +182,36 @@ Tensor<double> denom(Tensor<double> F,int no, int nv){
     return  eijab;
 }
 
-double mp2_rhf(Tensor<double> eri, Matrix coeffs, Matrix F, int no, int nv){
-    double emp2 = 0.0;
-    Tensor<double> moints = aotomo(eri,coeffs);
-    for(auto i=0;i<no;i++){
-        for(auto j=0;j<no;j++){
-            for(auto a=0;a<nv;a++){
-                for(auto b=0;b<nv;b++){
-                    const auto v1 = moints(i,no+a,j,no+b)*
-                            (2.0*moints(i,no+a,j,no+b) - moints(i,no+b,j,no+a));
-                    const auto v2 =( F(i,i)+F(j,j)-F(no+a,no+a)-F(no+b,no+b) );
-                    emp2 += v1/v2;
-                }
-            }
-        }
-    }
-    return emp2;
-}
-
-double mp2_energy(Tensor <double> eri, Matrix coeffs, Matrix F , int no, int nv){
-    Tensor<double> moints = aotomo(eri,coeffs);
-    Tensor<double> oovv = get_oovv(moints,no*2,nv*2);
-    Tensor<double> moe = fockspace2spin(F);
-    Tensor<double> eijab = denom(moe,no*2,nv*2);
+double mp2_energy(Tensor<double> eri,scf_results& SCF){
     double emp2=0.0;
-    for(auto i=0;i<no*2; i++){
-        for(auto j=0;j<no*2;j++){
-            for(auto a=0;a<nv*2;a++){
-                for(auto b=0;b<nv*2;b++){
-                    emp2+= 0.25*(oovv(i,j,a,b)*oovv(i,j,a,b))
-                            /eijab(i,j,a,b);
+    if(SCF.is_rhf){
+        int no = SCF.no;
+        int nv = SCF.nv;
+        Tensor<double> moints = aotomo(eri,SCF.C,SCF.C,SCF.C,SCF.C);
+        Tensor<double> soints = space2spin(moints);
+        Tensor<double> oovv = get_oovv(soints,no*2,nv*2);
+        Tensor<double> moe = fockspace2spin(SCF.F);
+        Tensor<double> eijab = denom(moe,no*2,nv*2);
+        int no_so = no*2;
+        int nv_so = nv*2;
+        for(auto i=0;i<no_so; i++){
+            for(auto j=0;j<no_so;j++){
+                for(auto a=0;a<nv_so;a++){
+                    for(auto b=0;b<nv_so;b++){
+                        emp2+= 0.25*(oovv(i,j,a,b)*oovv(i,j,a,b))
+                               /eijab(i,j,a,b);
+                    }
                 }
             }
         }
     }
+
+    else if(SCF.is_rhf == 0){
+        Tensor<double> Malpha_alpha = aotomo(eri,SCF.Calpha,SCF.Calpha,SCF.Calpha,SCF.Calpha);
+        Tensor<double> Mbeta_beta = aotomo(eri,SCF.Cbeta,SCF.Cbeta,SCF.Cbeta,SCF.Cbeta);
+        Tensor<double> Malpha_beta = aotomo(eri,SCF.Calpha,SCF.Cbeta,SCF.Calpha,SCF.Cbeta);
+    }
+
     return emp2;
 }
 
