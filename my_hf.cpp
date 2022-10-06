@@ -41,6 +41,7 @@ struct inp_params{
     int do_diis = 1;
     int spin_mult = 1;
     int charge = 0;
+    string unit = "A";
 };
 
 struct scf_results{
@@ -50,7 +51,7 @@ struct scf_results{
     double scf_energy;
 };
 
-std::vector<Atom> read_geometry(string filename);
+vector <Atom>  read_geometry(string filename , string unit);
 inp_params read_input(string inp_file);
 double enuc_calc(vector<Atom> atoms);
 size_t nbasis(const std::vector<libint2::Shell>& shells);
@@ -65,18 +66,20 @@ int main(int argc, char* argv[]) {
     // INPUT ARGUMENTS
     string xyzfile = argv[1];
     const auto inpfile = argv[2];
-    const std::vector<libint2::Atom> atoms= read_geometry(xyzfile);
-    // Print Geometry
-    cout<< "molecular geometry :" << "\n";
-    for (auto n : atoms){
-        cout<<n.atomic_number << std::setprecision(12) << " \t "
-        << n.x << "\t " << n.y<< "\t " << n.z<< "\n";
-    }
     // INPUT PARAMETERS
     inp_params inpParams = read_input(inpfile);
     cout << "method: " << inpParams.method << endl;
     cout << "basis: " <<inpParams.basis << endl;
     cout << "scf_convergence: " <<inpParams.scf_convergence << endl;
+
+    const std::vector<libint2::Atom> atoms= read_geometry(xyzfile , inpParams.unit);
+    // Print Geometry
+    cout<< "molecular geometry :" << "\n";
+    for (auto n : atoms){
+        cout<<n.atomic_number << std::setprecision(12) << " \t "
+            << n.x << "\t " << n.y<< "\t " << n.z<< "\n";
+    }
+
     // no. of electrons
     int nelec=0;
     for(int i=0; i< atoms.size();i++){nelec+= atoms[i].atomic_number;}
