@@ -28,6 +28,17 @@ const vector<string> spliter(const string& s, const char& c)
     return v;
 }
 
+struct inp_params{
+    string scf = "RHF";
+    string method = "HF";
+    string basis= "STO-3G";
+    double scf_convergence = 1e-10;
+    int do_diis = 1;
+    int spin_mult = 1;
+    int charge = 0;
+    string unit = "A";
+};
+
 int atomic_no_sym(string sym){
     int Z=0;
     if (sym=="H"){Z=1;}
@@ -55,18 +66,26 @@ int atomic_no_sym(string sym){
 }
 
 
-Atom line_read(vector<string> line){
+Atom line_read(vector<string> line , string unit){
     int i =0;
     Atom atom;
     atom.atomic_number = atomic_no_sym(line[0]);
-    atom.x = 1.8897259885789*std::stod(line[1]);
-    atom.y = 1.8897259885789*std::stod(line[2]);
-    atom.z = 1.8897259885789*std::stod(line[3]);
+    if (unit == "Bohr"){
+        atom.x = std::stod(line[1]);
+        atom.y = std::stod(line[2]);
+        atom.z = std::stod(line[3]);
+    }
+    else if (unit == "A"){
+        atom.x = 1.8897259885789*std::stod(line[1]);
+        atom.y = 1.8897259885789*std::stod(line[2]);
+        atom.z = 1.8897259885789*std::stod(line[3]);
+    }
+
     return atom;
 }
 
 
-vector <Atom>  read_geometry(string filename){
+vector <Atom>  read_geometry(string filename , string unit){
     std::ifstream xyz (filename);
     int number_of_atoms =0;
     vector<Atom> atoms;
@@ -82,7 +101,7 @@ vector <Atom>  read_geometry(string filename){
             }
             else if(m>1 && m<number_of_atoms+2){
                 vector<string> line {spliter(myline, ' ')};
-                atom = line_read(line);
+                atom = line_read(line , unit);
                 atoms.push_back(atom);
             }
             m++;
@@ -91,15 +110,7 @@ vector <Atom>  read_geometry(string filename){
     return atoms;
 }
 
-struct inp_params{
-    string scf = "RHF";
-    string method = "HF";
-    string basis= "STO-3G";
-    double scf_convergence = 1e-10;
-    int do_diis = 1;
-    int spin_mult = 1;
-    int charge = 0;
-};
+
 
 
 inp_params read_input(string inp_file){
@@ -131,6 +142,9 @@ inp_params read_input(string inp_file){
                 }
                 if(vals[0]=="scf"){
                     inpParams.scf = vals[1];
+                }
+                if(vals[0] == "unit"){
+                    inpParams.unit = vals[1];
                 }
             }
         }
