@@ -203,11 +203,9 @@ scf_results RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec,
         double new_energy = scf_energy(D,H,Fock);
         double delta_e = abs(new_energy - hf_energy);
         hf_energy = new_energy;
-        if(i==0){
-            cout << "iter no :   " << "Energy (a.u.)\t"<< "Delta_E :\t"<< endl;
-        }
+        if(i==0){cout << "iter      " << "Energy (a.u.)\t\t"<< "Delta_E :\t"<< endl;}
         cout << std::setprecision(13)<< i+1 << "\t"
-             << hf_energy + enuc << "\t"  << "\t" << delta_e << endl;
+             << hf_energy + enuc << "\t\t"  << delta_e << endl;
         auto mo_energy = fock_diag.eigenvalues();
         if (delta_e <=inpParams.scf_convergence){
             cout << "Converged SCF energy :" << hf_energy +enuc<< "  a.u." << endl;
@@ -345,22 +343,21 @@ scf_results UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec,
         double new_energy = uhf_energy(Dt,H,Dalpha,Falpha,Dbeta, Fbeta);
         double delta_e = abs(new_energy - hf_energy);
         hf_energy = new_energy;
-        if(i==0){cout << "iter no :   " << "Energy (a.u.)\t"<< "Delta_E :\t"<< endl;}
+        if(i==0){cout << "iter      " << "Energy (a.u.)\t\t"<< "Delta_E :\t"<< endl;}
         cout << std::setprecision(13)<< i+1 << "\t"
-             << hf_energy + enuc << "\t"  << delta_e << endl;
+             << hf_energy + enuc << "\t\t"  << delta_e << endl;
         auto MOEa = falpha_diag.eigenvalues();
         auto MOEb = fbeta_diag.eigenvalues();
         if (delta_e <=inpParams.scf_convergence){
-            cout << std::setprecision(15)<< "Converged SCF energy :" << hf_energy +enuc<< "  a.u." << endl;
+            cout << std::setprecision(15)<< "Converged SCF energy :" << hf_energy +enuc<< "  a.u." << endl << endl;
             Matrix Fa  = Matrix::Zero(Nbasis,Nbasis);
             Matrix Fb  = Matrix::Zero(Nbasis,Nbasis);
             Matrix Moe = Matrix::Zero(Nbasis*2,Nbasis*1);
-
-           cout << "index\t" << "Alpha eigval\t" << "Beta eigval\t" << endl;
+           cout << "index  \t" << "Alpha eigvals\t" << "\t" << "Beta eigvals\t" << endl;
             for(auto i=0;i<Nbasis;i++){
                 Fa(i,i) = MOEa(i);
                 Fb(i,i) = MOEb(i);
-                cout << i << "\t" << MOEa(i) << "\t"<< MOEb(i)<< endl;
+                cout << i << "\t"<< MOEa(i) << "\t"<< MOEb(i)<< endl;
             }
             results.scf_energy = hf_energy+enuc;
             results.Falpha = Fa;

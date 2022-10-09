@@ -128,7 +128,7 @@ Tensor<double> aotomo(const Tensor<double>& eri ,const Matrix& coeffs1 ,
     return moints;
 }
 
-Tensor<double> space2spin(Tensor<double>& moints){
+Tensor<double> space2spin(const Tensor<double>& moints){
     const auto n2 = 2*moints.extent(0);
     Tensor<double> soints (n2,n2,n2,n2);
     for(auto p=0;p<n2;p++){
@@ -145,8 +145,8 @@ Tensor<double> space2spin(Tensor<double>& moints){
     return soints;
 }
 
-Tensor<double> fockspace2spin(Matrix Fock){
-    int nbasis = Fock.rows();
+Tensor<double> fockspace2spin(const Matrix& Fock){
+    auto nbasis = Fock.rows();
     Tensor<double> fock_spin (nbasis*2,nbasis*2);
     for(auto i=0;i<nbasis*2;i++){
             fock_spin(i,i) = Fock(i/2,i/2);
@@ -154,7 +154,7 @@ Tensor<double> fockspace2spin(Matrix Fock){
     return fock_spin;
 }
 
-Tensor<double> get_oovv(Tensor<double> soints , int nocc, int nvir){
+Tensor<double> get_oovv(const Tensor<double>& soints , int nocc, int nvir){
     Tensor<double> oovv (nocc,nocc,nvir,nvir);
     for(auto i=0;i<nocc; i++){
         for(auto j=0;j<nocc;j++){
@@ -168,7 +168,7 @@ Tensor<double> get_oovv(Tensor<double> soints , int nocc, int nvir){
     return oovv;
 }
 
-Tensor<double> denom(Tensor<double> F,int no, int nv){
+Tensor<double> denom(const Tensor<double>& F,int no, int nv){
     Tensor<double> eijab(no,no,nv,nv);
     for(auto i=0;i<no; i++){
         for(auto j=0;j<no;j++){
@@ -191,51 +191,30 @@ Tensor<double> space2spin_uhf(const Tensor<double>& Maa,const Tensor<double>& Mb
             for(auto k=0;k<n2;k++){
                 for(auto l=0;l<n2;l++){
                     if(i%2==0 && j%2==0 && k%2==0 && l%2==0){
-                        soints(i,j,k,l) = Maa(i/2,k/2,j/2,l/2)* (i%2 == k%2) * (j%2 == l%2)
-                                - Maa(i/2,l/2,j/2,k/2)* (i%2 == l%2) * (j%2 == k%2);
+                        soints(i,j,k,l) = Maa(i/2,k/2,j/2,l/2)
+                                - Maa(j/2,k/2,i/2,l/2);
                     }
                     else if(i%2==1 && j%2==1 && k%2==1 && l%2==1){
-                        soints(i,j,k,l) = Mbb(i/2,k/2,j/2,l/2)* (i%2 == k%2) * (j%2 == l%2)
-                                - Mbb(i/2,l/2,j/2,k/2)* (i%2 == l%2) * (j%2 == k%2);
-                    }
-                    else if(i%2==1 && j%2==0 && k%2==1 && l%2==0){
-                        soints(i,j,k,l) = Mab(i/2,k/2,j/2,l/2)* (i%2 == k%2) * (j%2 == l%2)
-                                - Mab(i/2,l/2,j/2,k/2)* (i%2 == l%2) * (j%2 == k%2);
+                        soints(i,j,k,l) = Mbb(i/2,k/2,j/2,l/2)
+                                - Mbb(j/2,k/2,i/2,l/2);
                     }
                     else if(i%2==0 && j%2==1 && k%2==0 && l%2==1){
-                        soints(i,j,k,l) =Mab(i/2,k/2,j/2,l/2)* (i%2 == k%2) * (j%2 == l%2)
-                                - Mab(i/2,l/2,j/2,k/2)* (i%2 == l%2) * (j%2 == k%2);
+                        soints(i,j,k,l) = Mab(i/2,k/2,j/2,l/2);
+                    }
+                    else if(i%2==1 && j%2==0 && k%2==1 && l%2==0) {
+                        soints(i,j,k,l) = Mab(i/2,k/2,j/2,l/2);
                     }
                     else if(i%2==1 && j%2==0 && k%2==0 && l%2==1){
-                        soints(i,j,k,l) = Mab(i/2,k/2,j/2,l/2)* (i%2 == k%2) * (j%2 == l%2)
-                                - Mab(i/2,l/2,j/2,k/2)* (i%2 == l%2) * (j%2 == k%2);
+                        soints(i,j,k,l) = - Mab(j/2,k/2,i/2,l/2);
                     }
                     else if(i%2==0 && j%2==1 && k%2==1 && l%2==0){
-                        soints(i,j,k,l) = Mab(i/2,k/2,j/2,l/2)* (i%2 == k%2) * (j%2 == l%2)
-                                - Mab(i/2,l/2,j/2,k/2)* (i%2 == l%2) * (j%2 == k%2);
+                        soints(i,j,k,l) = - Mab(j/2,k/2,i/2,l/2);
                     }
                 }
             }
         }
     }
     return soints;
-}
-
-Tensor<double> anti_sym(const Tensor<double>& soints){
-    const auto n2 = soints.extent(0);
-    Tensor<double> anti_ints (n2,n2,n2,n2);
-    for(auto i=0;i<n2;i++){
-        for(auto j=0;j<n2;j++){
-            for(auto k=0;k<n2;k++){
-                for(auto l=0;l<n2;l++){
-                    const auto value1 = soints(i,k,j,l) * (i%2 == k%2) * (j%2 == l%2);
-                    const auto value2 = soints(i,l,j,k) * (i%2 == l%2) * (j%2 == k%2);
-                    anti_ints(i,j,k,l)= value1 - value2;
-                }
-            }
-        }
-    }
-    return anti_ints;
 }
 
 double mp2_energy(Tensor<double> eri,scf_results& SCF){
@@ -265,7 +244,7 @@ double mp2_energy(Tensor<double> eri,scf_results& SCF){
     else if(SCF.is_rhf == 0){
         Tensor<double> Malpha_alpha = aotomo(eri,SCF.Calpha,SCF.Calpha,SCF.Calpha,SCF.Calpha);
         Tensor<double> Mbeta_beta   = aotomo(eri,SCF.Cbeta,SCF.Cbeta,SCF.Cbeta,SCF.Cbeta);
-        Tensor<double> Malpha_beta  = aotomo(eri,SCF.Calpha,SCF.Cbeta,SCF.Calpha,SCF.Cbeta);
+        Tensor<double> Malpha_beta  = aotomo(eri,SCF.Calpha,SCF.Calpha,SCF.Cbeta,SCF.Cbeta);
         Tensor<double> soints = space2spin_uhf(Malpha_alpha,Mbeta_beta,Malpha_beta);
         //Tensor<double> anti_symm_ints = anti_sym(soints);
         cout << "no. of occupied: "<< SCF.no << endl;
