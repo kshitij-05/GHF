@@ -29,6 +29,9 @@ Matrix make_fock(const std::vector<libint2::Shell>& shells,const Matrix& D);
 Matrix make_fock_uhf(const std::vector<libint2::Shell>& shells,
                      const Matrix& Dt, const Matrix& Dspin);
 
+Matrix make_fock_uhf_complex(const std::vector<libint2::Shell>& shells,
+                     const Matrix& Dt, const Matrix& Dspin);
+
 Matrix make_density(Matrix C ,const int nocc){
 
     auto nrows = C.rows();
@@ -126,8 +129,8 @@ scf_results RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec,
     const auto nocc = nelec / 2;
     results.nelec = nelec;
     results.nbasis = Nbasis;
-    results.no = nocc;
-    results.nv = Nbasis-nocc;
+    results.no = nelec;
+    results.nv = 2*Nbasis-nelec;
     // 1 body intergrals
     libint2::initialize();
     auto S = compute_1body_ints(obs.shells(), Operator::overlap , atoms);
@@ -144,7 +147,7 @@ scf_results RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec,
     Eigen::SelfAdjointEigenSolver<Matrix> init_fock_diag(init_guess_fock);
     Matrix C = dot_prod(S_inv,init_fock_diag.eigenvectors());
     Matrix D = guess_density(nocc,Nbasis);
-    cout  << std::setprecision(12)<< "Initial SCF energy: " << scf_energy(D,H,init_guess_fock)<< endl;
+    cout  << std::setprecision(12)<< "Initial SCF energy: " << scf_energy(D,H,H)<< endl;
     //SCF LOOP
     double hf_energy = 0.0;
     int set_lenght = 8;
@@ -258,7 +261,7 @@ scf_results UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec,
     Matrix Dalpha = guess_density(nalpha,Nbasis);
     Matrix Dbeta = guess_density(nbeta,Nbasis);
     Matrix Dt = Dalpha + Dbeta;
-    cout << std::setprecision(12) << "initial energy :" << uhf_energy(Dt,H,Dalpha,init_guess_fock,Dbeta,init_guess_fock) << endl;
+    cout << std::setprecision(12) << "initial energy :" << uhf_energy(Dt,H,Dalpha,H,Dbeta,H) << endl;
 
     double hf_energy = 0.0;
     int set_lenght = 6;
@@ -352,13 +355,17 @@ scf_results UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec,
             cout << std::setprecision(15)<< "Converged SCF energy :" << hf_energy +enuc<< "  a.u." << endl << endl;
             Matrix Fa  = Matrix::Zero(Nbasis,Nbasis);
             Matrix Fb  = Matrix::Zero(Nbasis,Nbasis);
-            Matrix Moe = Matrix::Zero(Nbasis*2,Nbasis*1);
-           cout << "index  \t" << "Alpha eigvals\t" << "\t" << "Beta eigvals\t" << endl;
+            Matrix Moe = Matrix::Zero(Nbasis*2,Nbasis*2);
+            cout << "index  \t" << "Alpha eigvals\t" << "\t" << "Beta eigvals\t" << endl;
             for(auto i=0;i<Nbasis;i++){
                 Fa(i,i) = MOEa(i);
                 Fb(i,i) = MOEb(i);
                 cout << i << "\t"<< MOEa(i) << "\t"<< MOEb(i)<< endl;
             }
+            for(auto i=0;i<2*Nbasis;i++){
+                Moe(i,i)=(i%2==0)*MOEa(i/2) + (i%2==1)*MOEb(i/2);
+            }
+            results.F = Moe;
             results.scf_energy = hf_energy+enuc;
             results.Falpha = Fa;
             results.Fbeta = Fb;

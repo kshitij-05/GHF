@@ -51,6 +51,11 @@ struct scf_results{
     double scf_energy;
 };
 
+struct mp2_results{
+    Tensor<double> t2_mp2;
+    double mp2_energy;
+};
+
 vector <Atom>  read_geometry(string filename , string unit);
 inp_params read_input(string inp_file);
 double enuc_calc(vector<Atom> atoms);
@@ -58,8 +63,8 @@ size_t nbasis(const std::vector<libint2::Shell>& shells);
 scf_results RHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc);
 scf_results UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec, inp_params inpParams , double enuc);
 Tensor<double> make_ao_ints(const std::vector<libint2::Shell>& shells);
-double mp2_energy(Tensor <double> eri,scf_results& SCF);
-
+mp2_results mp2(Tensor <double> eri,scf_results& SCF);
+double ccsd(const inp_params&  inpParams, const Tensor<double>& eri, const scf_results& SCF,const mp2_results&  MP2);
 
 
 int main(int argc, char* argv[]) {
@@ -114,8 +119,16 @@ int main(int argc, char* argv[]) {
 
     if(inpParams.method == "MP2") {
         auto eri = make_ao_ints(obs.shells());
-        double emp2 = mp2_energy(eri,SCF);
-        cout<< std::setprecision(15) << "MP2 energy: "<< emp2<<endl;
+        mp2_results MP2results = mp2(eri,SCF);
+        cout<< std::setprecision(15) << "MP2 energy: "<< MP2results.mp2_energy <<endl;
+    }
+
+    if(inpParams.method == "CCSD"){
+        auto eri = make_ao_ints(obs.shells());
+        mp2_results MP2 = mp2(eri,SCF);
+        double ecc = ccsd(inpParams,eri,SCF,MP2);
+        cout << "Eccsd = " << ecc << endl;
+
     }
 }
 
