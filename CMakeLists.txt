@@ -21,7 +21,7 @@ find_package(Libint2 REQUIRED)
 
 
 add_executable(my_hf
-        my_hf.cpp util.cpp one_body_ints.cpp scf_helper.cpp build_fock.cpp mp2.cpp)
+        my_hf.cpp util.cpp one_body_ints.cpp scf_helper.cpp build_fock.cpp mp2.cpp ccsd.cpp so_integrals.cpp)
 
 target_link_libraries(my_hf BTAS)
 target_link_libraries(my_hf Libint2::cxx)

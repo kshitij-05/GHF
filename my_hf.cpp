@@ -39,6 +39,7 @@ struct inp_params{
     string basis= "STO-3G";
     double scf_convergence = 1e-10;
     int do_diis = 1;
+    int singles = 1;
     int spin_mult = 1;
     int charge = 0;
     string unit = "A";
@@ -73,6 +74,7 @@ int main(int argc, char* argv[]) {
     const auto inpfile = argv[2];
     // INPUT PARAMETERS
     inp_params inpParams = read_input(inpfile);
+    cout << "singles " << inpParams.singles<< endl;
     cout << "method: " << inpParams.method << endl;
     cout << "basis: " <<inpParams.basis << endl;
     cout << "scf_convergence: " <<inpParams.scf_convergence << endl;
@@ -126,6 +128,8 @@ int main(int argc, char* argv[]) {
     if(inpParams.method == "CCSD"){
         auto eri = make_ao_ints(obs.shells());
         mp2_results MP2 = mp2(eri,SCF);
+
+
         double ecc = ccsd(inpParams,eri,SCF,MP2);
         cout << "Eccsd = " << ecc << endl;
 

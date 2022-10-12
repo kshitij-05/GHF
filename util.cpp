@@ -34,6 +34,7 @@ struct inp_params{
     string basis= "STO-3G";
     double scf_convergence = 1e-10;
     int do_diis = 1;
+    int singles = 1;
     int spin_mult = 1;
     int charge = 0;
     string unit = "A";
@@ -133,6 +134,9 @@ inp_params read_input(string inp_file){
                 }
                 if(vals[0] == "do_diis"){
                     inpParams.do_diis = std::stoi(vals[1]);
+                }
+                if(vals[0] == "singles"){
+                    inpParams.singles = std::stoi(vals[1]);
                 }
                 if(vals[0] == "spin_mult"){
                     inpParams.spin_mult = std::stoi(vals[1]);

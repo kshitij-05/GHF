@@ -38,10 +38,12 @@ struct inp_params{
     string basis= "STO-3G";
     double scf_convergence = 1e-10;
     int do_diis = 1;
+    int singles = 1;
     int spin_mult = 1;
     int charge = 0;
     string unit = "A";
 };
+
 struct scf_results{
     bool is_rhf=1;
     int nelec, nbasis,no,nv , nalpha,nbeta;
@@ -114,15 +116,22 @@ Tensor <double> t1_sqr(const Tensor<double>& ts) {
 
 
 intermidiates update_imds(const Tensor<double>& ts,const Tensor<double>& td,const INTEGRALS& integrals){
-    int no = ts.extent(0);
-    int nv = ts.extent(1);
+    auto no = ts.extent(0);
+    auto nv = ts.extent(1);
     intermidiates imds;
-
+    const char m='m';
+    const char n='n';
+    const char e='e';
+    const char f='f';
+    const char a='a';
+    const char b='b';
+    const char i='i';
+    const char j='j';
 
     Tensor<double> Fae(nv,nv);
-    contract(-0.5,integrals.Fia,{'m','e'}, ts,{'m','a'},1.0,Fae,{'a','e'});
-    contract(1.0,ts,{'m','f'},integrals.vvvo,{'e','f','a','m'},1.0,Fae,{'a','e'});
-    contract(-0.5, tau2(0.5,ts,td),{'m','n','a','f'},integrals.oovv,{'m','n','e','f'},1.0,Fae,{'a','e'});  // maybe 0.5 is not there
+    contract(-0.5,integrals.Fia,{m,e}, ts,{m,a},1.0,Fae,{a,e});
+    contract(1.0,ts,{m,f},integrals.vvvo,{e,f,a,m},1.0,Fae,{a,e});
+    contract(-0.5, tau2(0.5,ts,td),{m,n,a,f},integrals.oovv,{m,n,e,f},1.0,Fae,{a,e});
     for(auto a=0;a<nv;a++){
         for(auto e=0;e<nv;e++){
             Fae(a,e) += (1-(a==e))*integrals.Faa(a,e);
@@ -131,9 +140,9 @@ intermidiates update_imds(const Tensor<double>& ts,const Tensor<double>& td,cons
     imds.Fae = Fae;
 
     Tensor<double> Fmi(no,no);
-    contract(0.5,ts,{'i','e'},integrals.Fia,{'m','e'},1.0,Fmi,{'m','i'});
-    contract(1.0,ts,{'n','e'},integrals.ooov,{'m','n','i','e'},1.0,Fmi,{'m','i'});
-    contract(0.5, tau2(0.5,ts,td),{'i','n','e','f'},integrals.oovv,{'m','n','e','f'},1.0,Fmi,{'m','i'}); // maybe 0.5 is not there
+    contract(0.5,ts,{i,e},integrals.Fia,{m,e},1.0,Fmi,{m,i});
+    contract(1.0,ts,{n,e},integrals.ooov,{m,n,i,e},1.0,Fmi,{m,i});
+    contract(0.5, tau2(0.5,ts,td),{i,n,e,f},integrals.oovv,{m,n,e,f},1.0,Fmi,{m,i});
     for(auto m=0;m<no;m++){
         for(auto i=0;i<no;i++){
             Fmi(m,i) += (1-(m==i))*integrals.Fii(m,i);
@@ -142,29 +151,30 @@ intermidiates update_imds(const Tensor<double>& ts,const Tensor<double>& td,cons
     imds.Fmi = Fmi;
 
     Tensor<double> Fme(no,nv);
-    contract(1.0,ts,{'n','f'},integrals.oovv,{'m','n','e','f'},1.0,Fme,{'m','e'});
+    contract(1.0,ts,{n,f},integrals.oovv,{m,n,e,f},1.0,Fme,{m,e});
     Fme += integrals.Fia;
     imds.Fme = Fme;
 
     Tensor<double> Wmnij(no,no,no,no);
-    contract(1.0,ts,{'j','e'},integrals.ooov,{'m','n','i','e'},1.0,Wmnij,{'m','n','i','j'});
-    contract(-1.0,ts,{'i','e'},integrals.ooov,{'m','n','j','e'},1.0,Wmnij,{'m','n','i','j'});
-    contract(0.25, tau2(1.0,ts,td),{'i','j','e','f'}, integrals.oovv,{'m','n','e','f'},1.0,Wmnij,{'m','n','i','j'});
+    contract(1.0,ts,{j,e},integrals.ooov,{m,n,i,e},1.0,Wmnij,{m,n,i,j});
+    contract(-1.0,ts,{i,e},integrals.ooov,{m,n,j,e},1.0,Wmnij,{m,n,i,j});
+    contract(0.25, tau2(1.0,ts,td),{i,j,e,f}, integrals.oovv,{m,n,e,f},1.0,Wmnij,{m,n,i,j});
     Wmnij += integrals.oooo;
     imds.Wmnij = Wmnij;
 
     Tensor<double> Wmbej(no,nv,nv,no);
-    contract(1.0,ts,{'j','f'},integrals.vvvo,{'f','e','b','m'},1.0,Wmbej,{'m','b','e','j'});
-    contract(1.0,ts,{'n','b'},integrals.ooov,{'m','n','j','e'},1.0,Wmbej,{'m','b','e','j'});
-    contract(-0.5,td,{'j','n','f','b'},integrals.oovv,{'m','n','e','f'},1.0,Wmbej, {'m','b','e','j'});  // might be a permutation here
-    contract(-1.0, t1_sqr(ts),{'j','n','f','b'},integrals.oovv,{'m','n','e','f'},1.0,Wmbej, {'m','b','e','j'});
+    contract(1.0,ts,{j,f},integrals.vvvo,{f,e,b,m},1.0,Wmbej,{m,b,e,j});
+    contract(1.0,ts,{n,b},integrals.ooov,{m,n,j,e},1.0,Wmbej,{m,b,e,j});
+    contract(-0.5,td,{j,n,f,b},integrals.oovv,{m,n,e,f},1.0,Wmbej, {m,b,e,j});
+    contract(-1.0, t1_sqr(ts),{j,n,f,b},integrals.oovv,{m,n,e,f},1.0,Wmbej, {m,b,e,j});
     Wmbej += integrals.ovvo;
     imds.Wmbej = Wmbej;
 
     return imds;
 }
 
-Tensor<double> make_t1(const Tensor<double>& ts,const Tensor<double>& td,const INTEGRALS& integrals,const intermidiates& imds,const Tensor<double> eia){
+Tensor<double> make_t1(const Tensor<double>& ts,const Tensor<double>& td,
+                       const INTEGRALS& integrals,const intermidiates& imds,const Tensor<double> eia){
     int no = ts.extent(0);
     int nv = ts.extent(1);
     const char m='m';
@@ -182,9 +192,9 @@ Tensor<double> make_t1(const Tensor<double>& ts,const Tensor<double>& td,const I
     contract(-1.0,ts,{n,f},integrals.ovov,{n,a,i,f},1.0,tsnew,{i,a});
     tsnew += integrals.Fia;
     Tensor<double> tsout (no,nv);
-    for(auto k=0;i<no;k++){
-        for(auto d=0;a<nv;d++){
-            tsout(k,d) = tsnew(k,d)/eia(k,d);
+    for(auto k=0;k<no;k++){
+        for(auto d=0;d<nv;d++){
+            tsout(k,d) += tsnew(k,d)/eia(k,d);
         }
     }
     return tsout;
@@ -264,7 +274,8 @@ double ccsd_energy(const Tensor<double>& ts, const Tensor<double>& td, const Ten
             ecc+=fia(i,a)*ts(i,a);
             for(auto j=0;j<no;j++){
                 for(auto b=0;b<nv;b++){
-                    ecc+=0.25*oovv(i,j,a,b)*td(i,j,a,b) + 0.5*oovv(i,j,a,b)*ts(i,a)*ts(j,b);
+                    ecc+=0.25*oovv(i,j,a,b)*td(i,j,a,b) +
+                            0.5*oovv(i,j,a,b)*ts(i,a)*ts(j,b);
                 }
             }
         }
@@ -286,9 +297,11 @@ double ccsd(const inp_params&  inpParams, const Tensor<double>& eri, const scf_r
     Tensor<double> td = MP2.t2_mp2;
     for (int i=0;i<60;i++){
         intermidiates imds = update_imds(ts,td,integrals);
-        Tensor<double> tsnew;
-        Tensor<double> tdnew;
-        tsnew = make_t1(ts,td,integrals,imds,eia);
+        Tensor<double> tsnew(no,nv);
+        Tensor<double> tdnew(no,no,nv,nv);
+        if(inpParams.singles==1){
+            tsnew = make_t1(ts,td,integrals,imds,eia);
+        }
         tdnew = make_t2(ts,td,imds,integrals,eijab);
         double new_ecc = ccsd_energy(tsnew,tdnew,integrals.Fia,integrals.oovv);
         double del_ecc = abs(new_ecc - ecc);

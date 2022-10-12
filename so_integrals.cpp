@@ -267,6 +267,13 @@ INTEGRALS make_ints(const Tensor<double>& eri,const scf_results& SCF){
         integrals.F = copy_fock(SCF.F , SCF.F,0,2*SCF.nbasis);
         integrals.Fii = copy_fock(SCF.F , SCF.F,0,SCF.no);
         integrals.Faa = copy_fock(SCF.F , SCF.F,SCF.no,2*SCF.nbasis);
+        Tensor<double> Fia (SCF.no,SCF.nv);
+        for(auto i=0;i<SCF.no;i++){
+            for(auto a=0;a<SCF.nv;a++){
+                Fia(i,a) = integrals.F(i,SCF.no+a);
+            }
+        }
+        integrals.Fia = Fia;
     }
     else if(SCF.is_rhf == 0){
         Tensor<double> Malpha_alpha = aotomo(eri,SCF.Calpha,SCF.Calpha,SCF.Calpha,SCF.Calpha);
@@ -280,10 +287,14 @@ INTEGRALS make_ints(const Tensor<double>& eri,const scf_results& SCF){
             Faa(i,i) = SCF.F(SCF.no+i,SCF.no+i);
         }
         integrals.Faa = Faa;
+        Tensor<double> Fia (SCF.no,SCF.nv);
+        for(auto i=0;i<SCF.no;i++){
+            for(auto a=0;a<SCF.nv;a++){
+                Fia(i,a) = integrals.F(i,SCF.no+a);
+            }
+        }
+        integrals.Fia = Fia;
     }
-
-    Tensor<double> Fia (SCF.no,SCF.nv);
-    integrals.Fia = Fia;
     integrals.vvvv = get_int(soints,SCF.no,SCF.nv,"vvvv");
     integrals.vvvo = get_int(soints,SCF.no,SCF.nv,"vvvo");
     integrals.oovv = get_int(soints,SCF.no,SCF.nv,"oovv");

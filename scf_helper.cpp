@@ -90,6 +90,7 @@ struct inp_params{
     string basis= "STO-3G";
     double scf_convergence = 1e-10;
     int do_diis = 1;
+    int singles = 1;
     int spin_mult = 1;
     int charge = 0;
     string unit = "A";
