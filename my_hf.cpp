@@ -131,6 +131,7 @@ int main(int argc, char* argv[]) {
         cout<< std::setprecision(15) << "MP2 energy: "<< MP2.mp2_energy <<endl;
         double ecc = ccsd(inpParams,eri,SCF,MP2);
         cout << "Eccsd = " << ecc << endl;
+        cout << "Total energy = " << SCF.scf_energy + MP2.mp2_energy + ecc << endl;
 
     }
 }

@@ -1,0 +1,9 @@
+scf UHF
+method CCSD
+scf_convergence 1e-9
+basis cc-pvqz
+unit Bohr
+do_diis 1
+singles 1
+spin_mult 1
+charge 0
