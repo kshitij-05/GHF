@@ -121,15 +121,14 @@ int main(int argc, char* argv[]) {
 
     if(inpParams.method == "MP2") {
         auto eri = make_ao_ints(obs.shells());
-        mp2_results MP2results = mp2(eri,SCF);
-        cout<< std::setprecision(15) << "MP2 energy: "<< MP2results.mp2_energy <<endl;
+        mp2_results MP2= mp2(eri,SCF);
+        cout<< std::setprecision(15) << "MP2 energy: "<< MP2.mp2_energy <<endl;
     }
 
     if(inpParams.method == "CCSD"){
         auto eri = make_ao_ints(obs.shells());
         mp2_results MP2 = mp2(eri,SCF);
-
-
+        cout<< std::setprecision(15) << "MP2 energy: "<< MP2.mp2_energy <<endl;
         double ecc = ccsd(inpParams,eri,SCF,MP2);
         cout << "Eccsd = " << ecc << endl;
 

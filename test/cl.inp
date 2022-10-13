@@ -1,6 +1,6 @@
 scf UHF
 method MP2
-basis STO-3G
+basis cc-pvdz
 scf_convergence 1e-10
 do_diis 0
 spin_mult 2

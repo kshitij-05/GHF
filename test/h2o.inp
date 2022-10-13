@@ -1,7 +1,9 @@
-scf RHF
-method MP2
-basis STO-3G
-scf_convergence 1e-10
+scf UHF
+method CCSD
+scf_convergence 1e-9
+basis sto-3g
+unit Bohr
 do_diis 1
+singles 1
 spin_mult 1
 charge 0

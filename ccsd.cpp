@@ -58,10 +58,13 @@ struct mp2_results{
 struct INTEGRALS{
     Tensor<double> vvvv;
     Tensor<double> vvvo;
+    Tensor<double> ovvv;
+    Tensor<double> vovv;
     Tensor<double> oovv;
     Tensor<double> ovvo;
     Tensor<double> ovov;
     Tensor<double> ooov;
+    Tensor<double> oovo;
     Tensor<double> ovoo;
     Tensor<double> oooo;
     Tensor<double> F;
@@ -77,35 +80,34 @@ Tensor<double> Dia(const Tensor<double>& Fii,const Tensor<double>& Faa);
 Tensor<double> Dijab(const Tensor<double>& Fii,const Tensor<double>& Faa);
 
 struct intermidiates{
-    Tensor <double> Fae, Fmi, Fme, Wmnij, Wmbej;
+    Tensor <double> Fae, Fmi, Fme, Wmnij, Wmbej,Wabef;
 };
 
 Tensor<double> tau2(double X, const Tensor<double>& ts , const Tensor<double>& td){
-    int no = ts.extent(0);
-    int nv = ts.extent(1);
+    auto no = ts.extent(0);
+    auto nv = ts.extent(1);
     Tensor<double> TAU2(no,no,nv,nv);
     for(auto i=0;i<no;i++){
         for(auto j=0;j<no;j++){
             for(auto a=0;a<nv;a++){
                 for(auto b=0;b<nv;b++){
-                    TAU2(i,j,a,b) +=X*ts(i,a)*ts(j,b) - X*ts(i,b)*ts(j,a);
+                    TAU2(i,j,a,b) +=X*ts(i,a)*ts(j,b) - X*ts(i,b)*ts(j,a)+td(i,j,a,b);
                 }
             }
         }
     }
-    TAU2+=td;
     return TAU2;
 }
 
 Tensor <double> t1_sqr(const Tensor<double>& ts) {
-    int no = ts.extent(0);
-    int nv = ts.extent(1);
-    Tensor<double> TAU(no, no, nv, nv);
+    auto no = ts.extent(0);
+    auto nv = ts.extent(1);
+    Tensor<double> TAU(no, nv, no, nv);
     for (auto i = 0; i < no; i++) {
         for (auto j = 0; j < no; j++) {
             for (auto a = 0; a < nv; a++) {
                 for (auto b = 0; b < nv; b++) {
-                    TAU(i, j, a, b) +=  ts(i, a) * ts(j, b);
+                    TAU(i, a, j, b) +=  ts(i, a) * ts(j, b);
                 }
             }
         }
@@ -130,53 +132,57 @@ intermidiates update_imds(const Tensor<double>& ts,const Tensor<double>& td,cons
 
     Tensor<double> Fae(nv,nv);
     contract(-0.5,integrals.Fia,{m,e}, ts,{m,a},1.0,Fae,{a,e});
-    contract(1.0,ts,{m,f},integrals.vvvo,{e,f,a,m},1.0,Fae,{a,e});
+    contract(1.0,ts,{m,f},integrals.ovvv,{m,a,f,e},1.0,Fae,{a,e});
     contract(-0.5, tau2(0.5,ts,td),{m,n,a,f},integrals.oovv,{m,n,e,f},1.0,Fae,{a,e});
-    for(auto a=0;a<nv;a++){
-        for(auto e=0;e<nv;e++){
-            Fae(a,e) += (1-(a==e))*integrals.Faa(a,e);
+    for(auto c=0;c<nv;c++){
+        for(auto d=0;d<nv;d++){
+            Fae(c,d) += (1-(c==d))*integrals.Faa(c,d);
         }
     }
     imds.Fae = Fae;
-
     Tensor<double> Fmi(no,no);
     contract(0.5,ts,{i,e},integrals.Fia,{m,e},1.0,Fmi,{m,i});
     contract(1.0,ts,{n,e},integrals.ooov,{m,n,i,e},1.0,Fmi,{m,i});
     contract(0.5, tau2(0.5,ts,td),{i,n,e,f},integrals.oovv,{m,n,e,f},1.0,Fmi,{m,i});
-    for(auto m=0;m<no;m++){
-        for(auto i=0;i<no;i++){
-            Fmi(m,i) += (1-(m==i))*integrals.Fii(m,i);
+    for(auto k=0;k<no;k++){
+        for(auto l=0;l<no;l++){
+            Fmi(k,l) += (1-(k==l))*integrals.Fii(k,l);
         }
     }
     imds.Fmi = Fmi;
-
     Tensor<double> Fme(no,nv);
     contract(1.0,ts,{n,f},integrals.oovv,{m,n,e,f},1.0,Fme,{m,e});
     Fme += integrals.Fia;
     imds.Fme = Fme;
-
     Tensor<double> Wmnij(no,no,no,no);
     contract(1.0,ts,{j,e},integrals.ooov,{m,n,i,e},1.0,Wmnij,{m,n,i,j});
     contract(-1.0,ts,{i,e},integrals.ooov,{m,n,j,e},1.0,Wmnij,{m,n,i,j});
     contract(0.25, tau2(1.0,ts,td),{i,j,e,f}, integrals.oovv,{m,n,e,f},1.0,Wmnij,{m,n,i,j});
     Wmnij += integrals.oooo;
     imds.Wmnij = Wmnij;
-
     Tensor<double> Wmbej(no,nv,nv,no);
-    contract(1.0,ts,{j,f},integrals.vvvo,{f,e,b,m},1.0,Wmbej,{m,b,e,j});
-    contract(1.0,ts,{n,b},integrals.ooov,{m,n,j,e},1.0,Wmbej,{m,b,e,j});
-    contract(-0.5,td,{j,n,f,b},integrals.oovv,{m,n,e,f},1.0,Wmbej, {m,b,e,j});
-    contract(-1.0, t1_sqr(ts),{j,n,f,b},integrals.oovv,{m,n,e,f},1.0,Wmbej, {m,b,e,j});
     Wmbej += integrals.ovvo;
+    contract(1.0,ts,{j,f},integrals.ovvv,{m,b,e,f},1.0,Wmbej,{m,b,e,j});
+    contract(-1.0,ts,{n,b},integrals.oovo,{m,n,e,j},1.0,Wmbej,{m,b,e,j});
+    contract(-0.5,td,{j,n,f,b},integrals.oovv,{m,n,e,f},1.0,Wmbej, {m,b,e,j});
+    contract(-1.0, t1_sqr(ts),{j,f,n,b},integrals.oovv,{m,n,e,f},1.0,Wmbej, {m,b,e,j});
     imds.Wmbej = Wmbej;
+
+    Tensor<double> Wabef(nv,nv,nv,nv);
+    Wabef += integrals.vvvv;
+    contract(-1.0,ts,{m,b},integrals.vovv,{a,m,e,f},1.0,Wabef,{a,b,e,f});
+    contract(1.0,ts,{m,a},integrals.vovv,{b,m,e,f},1.0,Wabef,{a,b,e,f});
+    contract(0.25, tau2(1.0,ts,td),{m,n,a,b},integrals.oovv,{m,n,e,f},1.0,Wabef,{a,b,e,f});
+
+    imds.Wabef = Wabef;
 
     return imds;
 }
 
 Tensor<double> make_t1(const Tensor<double>& ts,const Tensor<double>& td,
-                       const INTEGRALS& integrals,const intermidiates& imds,const Tensor<double> eia){
-    int no = ts.extent(0);
-    int nv = ts.extent(1);
+                       const INTEGRALS& integrals,const intermidiates& imds,const Tensor<double>& eia){
+    auto no = ts.extent(0);
+    auto nv = ts.extent(1);
     const char m='m';
     const char n='n';
     const char e='e';
@@ -184,13 +190,13 @@ Tensor<double> make_t1(const Tensor<double>& ts,const Tensor<double>& td,
     const char a='a';
     const char i='i';
     Tensor<double> tsnew(no,nv);
-    contract(1.0,ts,{i,e},imds.Fae,{a,e},1.0,tsnew,{i,a});
-    contract(-1.0,ts,{m,a},imds.Fmi,{m,i},1.0,tsnew,{i,a});
-    contract(1.0,td,{i,m,a,e},imds.Fme,{m,e},1.0,tsnew,{i,a});
-    contract(-0.5,td,{i,m,e,f},integrals.vvvo,{f,e,a,m},1.0,tsnew,{i,a});
-    contract(-0.5,td,{m,n,a,e},integrals.ooov,{m,n,i,e},1.0,tsnew,{i,a});
-    contract(-1.0,ts,{n,f},integrals.ovov,{n,a,i,f},1.0,tsnew,{i,a});
-    tsnew += integrals.Fia;
+    tsnew += integrals.Fia;    //+Fia
+    contract(1.0,ts,{i,e},imds.Fae,{a,e},1.0,tsnew,{i,a});                  //-T(i,e)*F(a,e)
+    contract(-1.0,ts,{m,a},imds.Fmi,{m,i},1.0,tsnew,{i,a});                 //+T(a,m)*F(m,e)
+    contract(1.0,td,{i,m,a,e},imds.Fme,{m,e},1.0,tsnew,{i,a});              //+T(i,m,a,e)*F(m,e)
+    contract(-1.0,ts,{n,f},integrals.ovov,{n,a,i,f},1.0,tsnew,{i,a});       //-T(n,f)*<na||if>
+    contract(-0.5,td,{i,m,e,f},integrals.ovvv,{m,a,e,f},1.0,tsnew,{i,a});   //-1/2T(i,m,e,f)*<ma||ef>
+    contract(-0.5,td,{m,n,a,e},integrals.oovo,{n,m,e,i},1.0,tsnew,{i,a});   //-1/2T(m,n,a,e)*<nm||ei>
     Tensor<double> tsout (no,nv);
     for(auto k=0;k<no;k++){
         for(auto d=0;d<nv;d++){
@@ -200,11 +206,10 @@ Tensor<double> make_t1(const Tensor<double>& ts,const Tensor<double>& td,
     return tsout;
 }
 
-Tensor<double> make_t2(const Tensor<double>& ts, const Tensor<double>& td, intermidiates imds,
+Tensor<double> make_t2(const Tensor<double>& ts, const Tensor<double>& td, const intermidiates& imds,
                        const INTEGRALS& integrals,const Tensor<double>& eijab){
-    int no = ts.extent(0);
-    int nv = ts.extent(1);
-
+    auto no = ts.extent(0);
+    auto nv = ts.extent(1);
     const char m='m';
     const char n='n';
     const char e='e';
@@ -213,44 +218,50 @@ Tensor<double> make_t2(const Tensor<double>& ts, const Tensor<double>& td, inter
     const char b='b';
     const char i='i';
     const char j='j';
-
     Tensor<double> tdnew(no,no,nv,nv);
+
+    tdnew += integrals.oovv;  //+<ij||ab>
+
     contract(1.0,td,{i,j,a,e},imds.Fae,{b,e},1.0,tdnew,{i,j,a,b});
-    contract(-1.0,td,{i,j,b,e},imds.Fae,{a,e},1.0,tdnew,{i,j,a,b});
+    contract(-1.0,td,{i,j,b,e},imds.Fae,{a,e},1.0,tdnew,{i,j,a,b}); // P(ab) T(ijae) Fbe
+
     Tensor<double> temp1(nv,nv);
     contract(1.0,ts,{m,b},imds.Fme,{m,e},1.0,temp1,{b,e});
     contract(-0.5,td,{i,j,a,e},temp1,{b,e},1.0,tdnew,{i,j,a,b});
     temp1 -=temp1;
     contract(1.0,ts,{m,a},imds.Fme,{m,e},1.0,temp1,{a,e});
-    contract(-0.5,td,{i,j,b,e},temp1,{a,e},1.0,tdnew,{i,j,a,b});
+    contract(0.5,td,{i,j,b,e},temp1,{a,e},1.0,tdnew,{i,j,a,b});  //  -1/2 P(ab) T(mb) Fme
+
     contract(-1.0,td,{i,m,a,b},imds.Fmi,{m,j},1.0, tdnew,{i,j,a,b});
-    contract(1.0,td,{j,m,a,b},imds.Fmi,{m,i},1.0,tdnew,{i,j,a,b});
+    contract(1.0,td,{j,m,a,b},imds.Fmi,{m,i},1.0,tdnew,{i,j,a,b});  //-P(ij) * T(imab) Fmj
+
     Tensor<double> temp2 (no,no);
     contract(1.0,ts,{j,e},imds.Fme,{m,e},1.0,temp2,{j,m});
     contract(-0.5,td,{i,m,a,b},temp2,{j,m},1.0,tdnew,{i,j,a,b});
     temp2 -=temp2;
     contract(1.0,ts,{i,e},imds.Fme,{m,e},1.0,temp2,{i,m});
-    contract(-0.5,td,{j,m,a,b},temp2,{i,m},1.0,tdnew,{i,j,a,b});
+    contract(0.5,td,{j,m,a,b},temp2,{i,m},1.0,tdnew,{i,j,a,b});   //-P(ij) * Tji * Fme
+
+    contract(0.5, tau2(1.0,ts,td),{m,n,a,b},imds.Wmnij,{m,n,i,j},1.0,tdnew,{i,j,a,b});     // 1/2  Tau(mnab)  Wmnij
+
     contract(1.0,ts,{i,e},integrals.vvvo,{a,b,e,j},1.0,tdnew,{i,j,a,b});
-    contract(-1.0,ts,{j,e},integrals.vvvo,{a,b,e,i},1.0,tdnew,{i,j,a,b});
-    contract(0.5, tau2(1.0,ts,td), {i,j,e,f}, integrals.vvvv,{a,b,e,f},1.0,tdnew,{i,j,a,b});
-    Tensor<double> Wabef(nv,nv,nv,nv);
-    contract(-1.0,ts,{m,b},integrals.vvvo,{e,f,a,m},1.0,Wabef,{a,b,e,f});
-    contract(1.0,ts,{m,a},integrals.vvvo,{e,f,b,m},1.0,Wabef,{a,b,e,f});
-    contract(0.25, tau2(1.0,ts,td),{m,n,a,b},integrals.oovv,{m,n,e,f},1.0,Wabef,{a,b,e,f});
-    contract(0.5, tau2(1.0,ts,td),{i,j,e,f},Wabef,{a,b,e,f},1.0,tdnew,{i,j,a,b});
-    contract(-1.0,ts,{m,a},integrals.ooov,{i,j,m,b},1.0,tdnew,{i,j,a,b});
-    contract(1.0,ts,{m,b},integrals.ooov,{i,j,m,a},1.0,tdnew,{i,j,a,b});
+    contract(-1.0,ts,{j,e},integrals.vvvo,{a,b,e,i},1.0,tdnew,{i,j,a,b});  //P(ij)  Tie  <ab||ej>
+
+    contract(-1.0,ts,{m,a},integrals.ovoo,{m,b,i,j},1.0,tdnew,{i,j,a,b});
+    contract(1.0,ts,{m,b},integrals.ovoo,{m,a,i,j},1.0,tdnew,{i,j,a,b});  // P(ab) Tma  <mb||ij>
+
     contract(1.0,td,{i,m,a,e},imds.Wmbej,{m,b,e,j},1.0,tdnew,{i,j,a,b});
-    contract(1.0, t1_sqr(ts),{i,m,e,a},integrals.ovov,{m,b,j,e},1.0,tdnew,{i,j,a,b});
     contract(-1.0,td,{j,m,a,e},imds.Wmbej,{m,b,e,i},1.0,tdnew,{i,j,a,b});
-    contract(-1.0, t1_sqr(ts),{j,m,e,a},integrals.ovov,{m,b,i,e},1.0,tdnew,{i,j,a,b});
     contract(-1.0,td,{i,m,b,e},imds.Wmbej,{m,a,e,j},1.0,tdnew,{i,j,a,b});
-    contract(-1.0, t1_sqr(ts),{i,m,e,b},integrals.ovov,{m,a,j,e},1.0,tdnew,{i,j,a,b});
-    contract(1.0,td,{j,m,b,e},imds.Wmbej,{m,a,e,i},1.0,tdnew,{i,j,a,b});
-    contract(1.0, t1_sqr(ts),{j,m,e,b},integrals.ovov,{m,a,i,e},1.0,tdnew,{i,j,a,b});
-    contract(0.5, tau2(1.0,ts,td),{m,n,a,b},imds.Wmnij,{m,n,i,j},1.0,tdnew,{i,j,a,b});
-    tdnew += integrals.oovv;
+    contract(1.0,td,{j,m,b,e},imds.Wmbej,{m,a,e,i},1.0,tdnew,{i,j,a,b});  //P(ij)P(ab)  Timae  Wmbej
+
+    contract(1.0, t1_sqr(ts),{i,e,m,a},integrals.ovov,{m,b,j,e},1.0,tdnew,{i,j,a,b});
+    contract(-1.0, t1_sqr(ts),{j,e,m,a},integrals.ovov,{m,b,i,e},1.0,tdnew,{i,j,a,b});
+    contract(-1.0, t1_sqr(ts),{i,e,m,b},integrals.ovov,{m,a,j,e},1.0,tdnew,{i,j,a,b});
+    contract(1.0, t1_sqr(ts),{j,e,m,b},integrals.ovov,{m,a,i,e},1.0,tdnew,{i,j,a,b});    //P(ij)P(ab)  Tie Tma <mb||ej>
+
+    contract(0.5, tau2(1.0,ts,td),{i,j,e,f} ,imds.Wabef,{a,b,e,f},1.0,tdnew,{i,j,a,b}); //1/2 Tau(ijef)  Wabef
+
     Tensor<double> tdout (no,no,nv,nv);
     for(auto k=0;k<no;k++){
         for(auto l=0;l<no;l++){
@@ -266,9 +277,8 @@ Tensor<double> make_t2(const Tensor<double>& ts, const Tensor<double>& td, inter
 
 double ccsd_energy(const Tensor<double>& ts, const Tensor<double>& td, const Tensor<double>& fia,const Tensor<double>& oovv){
     double ecc= 0.0;
-    int no = ts.extent(0);
-    int nv = ts.extent(1);
-
+    auto no = ts.extent(0);
+    auto nv = ts.extent(1);
     for(auto i=0;i<no;i++){
         for(auto a=0;a<nv;a++){
             ecc+=fia(i,a)*ts(i,a);
@@ -280,7 +290,6 @@ double ccsd_energy(const Tensor<double>& ts, const Tensor<double>& td, const Ten
             }
         }
     }
-
     return ecc;
 }
 
@@ -295,24 +304,21 @@ double ccsd(const inp_params&  inpParams, const Tensor<double>& eri, const scf_r
     Tensor<double> eijab = Dijab(integrals.Fii,integrals.Faa);
     Tensor<double> ts(no,nv);
     Tensor<double> td = MP2.t2_mp2;
-    for (int i=0;i<60;i++){
-        intermidiates imds = update_imds(ts,td,integrals);
-        Tensor<double> tsnew(no,nv);
-        Tensor<double> tdnew(no,no,nv,nv);
-        if(inpParams.singles==1){
-            tsnew = make_t1(ts,td,integrals,imds,eia);
-        }
-        tdnew = make_t2(ts,td,imds,integrals,eijab);
-        double new_ecc = ccsd_energy(tsnew,tdnew,integrals.Fia,integrals.oovv);
+    for (int i=0;i<200;i++){
+        if(i==0){cout << "iter      " << "Ecc (a.u.)\t\t"<< "Delta_E :\t"<< endl;}
+        double new_ecc = ccsd_energy(ts,td,integrals.Fia,integrals.oovv);
         double del_ecc = abs(new_ecc - ecc);
         ecc = new_ecc;
-        ts = tsnew;
-        td = tdnew;
         cout << i+1 << "\t" << ecc << "\t" << del_ecc << endl;
         if(del_ecc < inpParams.scf_convergence){
+            cout << endl;
             break;
         }
+        intermidiates imds = update_imds(ts,td,integrals);
+        if(inpParams.singles==1){
+            ts = make_t1(ts,td,integrals,imds,eia);
+        }
+        td = make_t2(ts,td,imds,integrals,eijab);
     }
-
     return ecc;
 }

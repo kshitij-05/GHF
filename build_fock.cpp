@@ -200,15 +200,13 @@ Matrix make_fock_uhf_complex(const std::vector<libint2::Shell>& shells,const Mat
                                     const auto value = buf_1234[f1234];
 
                                     const auto value_scal_by_deg = value * s1234_deg;
+                                    G(bf1,bf2) += 0.5*Dt(bf3,bf4) * value_scal_by_deg;
+                                    G(bf3,bf4) += 0.5*Dt(bf1,bf2) * value_scal_by_deg;
+                                    G(bf1,bf3) -= 0.25 * Dspin(bf2,bf4) * value_scal_by_deg;
+                                    G(bf2,bf4) -= 0.25 * Dspin(bf1,bf3) * value_scal_by_deg;
+                                    G(bf1,bf4) -= 0.25 * Dspin(bf2,bf3) * value_scal_by_deg;
+                                    G(bf2,bf3) -= 0.25 * Dspin(bf1,bf4) * value_scal_by_deg;
 
-                                    G(bf1,bf2) += Dt(bf3,bf4) * value;
-                                    G(bf3,bf4) += Dt(bf1,bf2) * value;
-                                    G(bf2,bf1) += Dt(bf3,bf4) * value;
-                                    G(bf4,bf3) += Dt(bf1,bf2) * value;
-                                    G(bf1,bf3) -= Dspin(bf2,bf4) * value;
-                                    G(bf2,bf4) -= Dspin(bf1,bf3) * value;
-                                    G(bf1,bf4) -= Dspin(bf2,bf3) * value;
-                                    G(bf2,bf3) -= Dspin(bf1,bf4) * value;
                                 }
                             }
                         }

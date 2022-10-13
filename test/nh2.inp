@@ -1,7 +1,9 @@
 scf UHF
-method MP2
-basis STO-3G
-scf_convergence 1e-10
+method CCSD
+unit A
+basis sto-3g
+scf_convergence 1e-9
+singles 1
 do_diis 0
 spin_mult 2
 charge 0

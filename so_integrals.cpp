@@ -42,10 +42,13 @@ struct scf_results{
 struct INTEGRALS{
     Tensor<double> vvvv;
     Tensor<double> vvvo;
+    Tensor<double> ovvv;
+    Tensor<double> vovv;
     Tensor<double> oovv;
     Tensor<double> ovvo;
     Tensor<double> ovov;
     Tensor<double> ooov;
+    Tensor<double> oovo;
     Tensor<double> ovoo;
     Tensor<double> oooo;
     Tensor<double> F;
@@ -55,6 +58,8 @@ struct INTEGRALS{
     Tensor<double> eia;
     Tensor<double> eijab;
 };
+
+
 Tensor<double> make_ao_ints(const std::vector<libint2::Shell>& shells) {
     // construct the 2-electron repulsion integrals engine
     size_t Nbasis = nbasis(shells);
@@ -149,10 +154,10 @@ Tensor<double> get_int(const Tensor<double>& soints , int nocc, int nvir ,string
     int n2 = (int_type[1] == 'o')*nocc + (int_type[1]== 'v')*nvir;
     int n3 = (int_type[2] == 'o')*nocc + (int_type[2]== 'v')*nvir;
     int n4 = (int_type[3] == 'o')*nocc + (int_type[3]== 'v')*nvir;
-    int i1 = (int_type[0] == 'o')*0 + (int_type[0]== 'v')*nocc;
-    int i2 = (int_type[1] == 'o')*0 + (int_type[1]== 'v')*nocc;
-    int i3 = (int_type[2] == 'o')*0 + (int_type[2]== 'v')*nocc;
-    int i4 = (int_type[3] == 'o')*0 + (int_type[3]== 'v')*nocc;
+    int i1 = (int_type[0]== 'v')*nocc;
+    int i2 = (int_type[1]== 'v')*nocc;
+    int i3 = (int_type[2]== 'v')*nocc;
+    int i4 = (int_type[3]== 'v')*nocc;
     Tensor<double> slice_int (n1,n2,n3,n4);
     for(auto i=0;i<n1; i++){
         for(auto j=0;j<n2;j++){
@@ -297,9 +302,13 @@ INTEGRALS make_ints(const Tensor<double>& eri,const scf_results& SCF){
     }
     integrals.vvvv = get_int(soints,SCF.no,SCF.nv,"vvvv");
     integrals.vvvo = get_int(soints,SCF.no,SCF.nv,"vvvo");
+    integrals.ovvv = get_int(soints,SCF.no,SCF.nv,"ovvv");
+    integrals.vovv = get_int(soints,SCF.no,SCF.nv,"vovv");
     integrals.oovv = get_int(soints,SCF.no,SCF.nv,"oovv");
     integrals.ooov = get_int(soints,SCF.no,SCF.nv,"ooov");
     integrals.oooo = get_int(soints,SCF.no,SCF.nv,"oooo");
+    integrals.ovoo = get_int(soints,SCF.no,SCF.nv,"ovoo");
+    integrals.oovo = get_int(soints,SCF.no,SCF.nv,"oovo");
     integrals.ovvo = get_int(soints,SCF.no,SCF.nv,"ovvo");
     integrals.ovov = get_int(soints,SCF.no,SCF.nv,"ovov");
     return integrals;

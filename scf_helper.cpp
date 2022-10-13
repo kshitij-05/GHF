@@ -29,8 +29,7 @@ Matrix make_fock(const std::vector<libint2::Shell>& shells,const Matrix& D);
 Matrix make_fock_uhf(const std::vector<libint2::Shell>& shells,
                      const Matrix& Dt, const Matrix& Dspin);
 
-Matrix make_fock_uhf_complex(const std::vector<libint2::Shell>& shells,
-                     const Matrix& Dt, const Matrix& Dspin);
+Matrix make_fock_uhf_complex(const std::vector<libint2::Shell>& shells,const Matrix& Dt, const Matrix& Dspin);
 
 Matrix make_density(Matrix C ,const int nocc){
 
@@ -269,8 +268,8 @@ scf_results UHF(BasisSet obs, vector<libint2::Atom> atoms,int Nbasis, int nelec,
     vector<Matrix> era,erb,fsa,fsb;
 
     for (int i = 0; i < 200; i++) {
-        Matrix Falpha = H + make_fock_uhf(obs.shells(), Dt, Dalpha);
-        Matrix Fbeta = H + make_fock_uhf(obs.shells(), Dt, Dbeta);
+        Matrix Falpha = H + make_fock_uhf_complex(obs.shells(), Dt, Dalpha);
+        Matrix Fbeta = H + make_fock_uhf_complex(obs.shells(), Dt, Dbeta);
 
         if(inpParams.do_diis==1){
             int Nerr = era.size();
